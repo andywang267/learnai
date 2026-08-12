@@ -266,7 +266,7 @@
     </div>
   </section>
 
-  <footer>云端同步版 · 进度 / 笔记 / 操作历史 存于云端服务器，跨设备实时同步 · 工作日早8:50 / 晚19:30、周末早8:00 / 下午14:30 自动提醒</footer>
+  <footer>云端同步版 · 进度 / 笔记 / 操作历史 存于云端（GitHub Gist 或自建服务器），跨设备实时同步 · 工作日早8:50 / 晚19:30、周末早8:00 / 下午14:30 自动提醒</footer>
 </div>
 
 <script>
@@ -355,11 +355,41 @@ const START = new Date("2026-08-13T00:00:00");
 const CACHE_KEY = "aiplan_cache_v2";
 
 /* ---------- cloud store ---------- */
-// API_BASE: 默认同源（由同步后端同一地址托管）；也可通过 ?api=https://你的后端/api 指定独立后端
+// 两种云端后端：
+//  1) 服务器模式（?api= 或同源托管）：用现有 Node server.js 的 /api/* 接口
+//  2) Gist 模式（?gist=<ID>）：用 GitHub Gist 作共享存储——无需任何服务器、免费、永久、不用绑卡
 const API_BASE = (new URLSearchParams(location.search).get('api')||'').replace(/\/$/,'');
+const GIST_ID = (new URLSearchParams(location.search).get('gist')||localStorage.getItem('aiplan_gist_id')||'').trim();
 function apiUrl(p){ return API_BASE ? API_BASE + p : p; }
+function gistHeaders(extra){ return Object.assign({'Accept':'application/vnd.github+json'}, extra||{}); }
+async function gistLoad(){
+  const r=await fetch('https://api.github.com/gists/'+GIST_ID,{headers:gistHeaders({'Authorization':'token '+GIST_TOKEN})});
+  if(!r.ok) throw new Error('gist load '+r.status);
+  const j=await r.json();
+  const f=j.files&&j.files['state.json'];
+  return f? JSON.parse(f.content||'{}') : {};
+}
+async function gistSave(data){
+  const r=await fetch('https://api.github.com/gists/'+GIST_ID,{
+    method:'PATCH',
+    headers:gistHeaders({'Authorization':'token '+GIST_TOKEN,'Content-Type':'application/json'}),
+    body:JSON.stringify({files:{'state.json':{content:JSON.stringify(data)}}})
+  });
+  if(!r.ok) throw new Error('gist save '+r.status);
+}
+async function gistCreate(){
+  const r=await fetch('https://api.github.com/gists',{
+    method:'POST',
+    headers:gistHeaders({'Authorization':'token '+GIST_TOKEN,'Content-Type':'application/json'}),
+    body:JSON.stringify({description:'AI学习计划器云端同步',public:false,files:{'state.json':{content:'{}'}}})
+  });
+  if(!r.ok) throw new Error('gist create '+r.status);
+  const j=await r.json(); return j.id;
+}
 const STATE = { progress: [], opc: {}, notes: [], history: [] };
 let UID = null;
+let GIST_TOKEN = localStorage.getItem('aiplan_gist_token')||'';
+let MODE = GIST_ID ? 'gist' : 'server';
 let cloudOk = false;
 let pushTimer = null;
 
@@ -379,8 +409,14 @@ function loadHistory(){ return STATE.history; }
 function saveHistory(h){ STATE.history=h; persist(); }
 function logAction(text){ STATE.history.unshift({t:Date.now(),text}); if(STATE.history.length>300) STATE.history.length=300; saveCache(); schedulePush(); renderHistory(); }
 
-async function apiLoad(uid){ const r=await fetch(apiUrl('/api/load?uid='+encodeURIComponent(uid))); if(!r.ok) throw new Error('load'); return await r.json(); }
-async function apiSave(uid,data){ const r=await fetch(apiUrl('/api/save'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid,data})}); if(!r.ok) throw new Error('save'); return true; }
+async function apiLoad(uid){
+  if(MODE==='gist') return await gistLoad();
+  const r=await fetch(apiUrl('/api/load?uid='+encodeURIComponent(uid))); if(!r.ok) throw new Error('load'); return await r.json();
+}
+async function apiSave(uid,data){
+  if(MODE==='gist'){ await gistSave(data); return true; }
+  const r=await fetch(apiUrl('/api/save'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid,data})}); if(!r.ok) throw new Error('save'); return true;
+}
 
 function mergeState(local, remote){
   if(!remote) return local;
@@ -400,7 +436,8 @@ function mergeState(local, remote){
 
 function schedulePush(){ clearTimeout(pushTimer); pushTimer=setTimeout(doPush,1000); }
 async function doPush(){
-  if(!UID||!cloudOk) return;
+  if(!cloudOk) return;
+  if(MODE==='server' && !UID) return;
   setStatus('syncing');
   try{
     const remote=await apiLoad(UID);
@@ -413,7 +450,8 @@ async function doPush(){
   }catch(e){ setStatus('offline'); }
 }
 async function pull(){
-  if(!UID||!cloudOk) return;
+  if(!cloudOk) return;
+  if(MODE==='server' && !UID) return;
   try{
     const remote=await apiLoad(UID);
     const merged=mergeState(STATE,remote);
@@ -442,27 +480,47 @@ function getUid(){
 }
 function setStatus(s){
   const dot=document.getElementById('syncDot'); const txt=document.getElementById('syncText');
-  if(s==='online'){ dot.className='dot on'; txt.textContent='云端已同步 · 同步码 '+UID; }
+  const tag = MODE==='gist' ? 'Gist云端' : ('同步码 '+UID);
+  if(s==='online'){ dot.className='dot on'; txt.textContent='已同步 · '+tag; }
   else if(s==='syncing'){ dot.className='dot sync'; txt.textContent='同步中…'; }
-  else { dot.className='dot off'; txt.textContent='未连云端 · 仅本机缓存（同步码 '+UID+'）'; }
+  else { dot.className='dot off'; txt.textContent='未连云端 · 仅本机缓存（'+tag+'）'; }
 }
 
 document.getElementById('btnCopySync').onclick=()=>{
+  if(MODE==='gist' && !location.search.includes('gist=')){
+    const p=new URLSearchParams(location.search); p.set('gist',GIST_ID); history.replaceState(null,'',location.pathname+'?'+p.toString());
+  }
   navigator.clipboard.writeText(location.href).then(()=>alert('同步链接已复制，用手机或另一台设备打开即可同步')).catch(()=>prompt('复制此链接：',location.href));
 };
 document.getElementById('btnInputSync').onclick=()=>{
-  const code=prompt('输入对方的同步码（或直接粘贴完整同步链接）：');
+  const code=prompt('输入同步码 / 同步链接：\n· Gist 模式粘贴 ?gist= 链接\n· 服务器模式粘贴 ?sync= 链接');
   if(!code) return;
-  const m=code.match(/sync=([a-z0-9]+)/i);
+  let m=code.match(/gist=([a-z0-9]+)/i);
+  if(m){ localStorage.setItem('aiplan_gist_id',m[1]); const p=new URLSearchParams(location.search); p.set('gist',m[1]); location.search=p.toString(); return; }
+  m=code.match(/sync=([a-z0-9]+)/i);
   const uid=m?m[1]:code.trim();
   const params=new URLSearchParams(location.search); params.set('sync',uid);
   location.search=params.toString();
 };
-document.getElementById('btnSyncNow').onclick=()=>{
-  if(!UID) return;
-  if(!cloudOk){ setStatus('offline'); alert('未连接到云端同步服务。\n若你是把本页面单独托管/本地打开的，请通过 ?api=你的后端地址/api 指定同步后端后再打开；\n若是用云端版链接打开的，请稍候或检查网络。'); return; }
+document.getElementById('btnSyncNow').onclick=async()=>{
+  if(MODE!=='gist'){
+    if(!UID) return;
+    if(!cloudOk){ setStatus('offline'); alert('未连接到云端同步服务。\n若你是把本页面单独托管/本地打开的，请通过 ?api=你的后端地址/api 指定同步后端后再打开；\n若是用云端版链接打开的，请稍候或检查网络。'); return; }
+    setStatus('syncing'); await doPush(); await pull(); return;
+  }
+  // Gist 模式：确保 token 与（可选的）gist
+  if(!GIST_TOKEN){ const t=prompt('Gist 云端同步需要 GitHub Token（只需 gist 权限）。粘贴你的 token：'); if(t){ GIST_TOKEN=t.trim(); localStorage.setItem('aiplan_gist_token',GIST_TOKEN); } }
+  if(!GIST_ID){
+    if(!GIST_TOKEN){ setStatus('offline'); return; }
+    try{
+      const id=await gistCreate(); localStorage.setItem('aiplan_gist_id',id); MODE='gist';
+      const p=new URLSearchParams(location.search); p.set('gist',id); history.replaceState(null,'',location.pathname+'?'+p.toString());
+      alert('已创建云端笔记本！同步链接已生成，复制发给另一台设备即可同步。');
+    }catch(e){ alert('创建失败：'+e.message); setStatus('offline'); return; }
+  }
+  if(!GIST_TOKEN){ setStatus('offline'); return; }
   setStatus('syncing');
-  (async()=>{ await doPush(); await pull(); })();
+  try{ await doPush(); await pull(); }catch(e){ setStatus('offline'); alert('同步失败：'+e.message); }
 };
 
 /* ---------- helpers ---------- */
@@ -687,12 +745,19 @@ UID=getUid();
 setStatus('syncing');
 updateRing(); refreshGrid(); applyOpcToUI(); renderNotes(); renderHistory();
 (async()=>{
-  try{
-    const r=await fetch(apiUrl('/api/ping')); const j=await r.json();
-    cloudOk = !!(j && j.mode==='node');
-  }catch(e){ cloudOk=false; }
-  if(cloudOk){ await pull(); setInterval(pull, 30000); }
-  else setStatus('offline');
+  if(MODE==='gist'){
+    if(!GIST_TOKEN){ setStatus('offline'); return; }
+    try{ await gistLoad(); cloudOk=true; }catch(e){ cloudOk=false; }
+    if(cloudOk){ await pull(); setInterval(pull, 30000); }
+    else setStatus('offline');
+  } else {
+    try{
+      const r=await fetch(apiUrl('/api/ping')); const j=await r.json();
+      cloudOk = !!(j && j.mode==='node');
+    }catch(e){ cloudOk=false; }
+    if(cloudOk){ await pull(); setInterval(pull, 30000); }
+    else setStatus('offline');
+  }
 })();
 </script>
 </body>
