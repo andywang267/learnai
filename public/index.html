@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>andy老师 · 3个月AI学习计划器（云端同步版）</title>
+<style>
+  :root{
+    --bg:#f6f8fb; --card:#ffffff; --ink:#1f2733; --sub:#5b6675; --line:#e6ebf2;
+    --andrew:#2f6df6; --kakashi:#8b5cf6; --hungyi:#16a34a; --mu:#f59e0b; --cash:#ef4444;
+    --ok:#16a34a; --shadow:0 6px 24px rgba(31,39,51,.08);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;-webkit-text-size-adjust:100%}
+  #syncBar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#0f172a;color:#e2e8f0;padding:8px 14px;font-size:12px}
+  #syncBar .dot{width:9px;height:9px;border-radius:50%;display:inline-block;background:#94a3b8;flex:0 0 auto}
+  #syncBar .dot.on{background:#22c55e}
+  #syncBar .dot.sync{background:#f59e0b}
+  #syncBar .dot.off{background:#ef4444}
+  #syncBar button{border:1px solid #334155;background:#1e293b;color:#e2e8f0;padding:5px 10px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600}
+  #syncText{font-weight:600}
+  header{background:linear-gradient(120deg,#1f2733,#2f3b52);color:#fff;padding:22px 24px}
+  header h1{margin:0;font-size:21px;letter-spacing:.5px}
+  header p{margin:6px 0 0;color:#c3ccdb;font-size:13px}
+  .wrap{max-width:1080px;margin:0 auto;padding:18px 16px 60px}
+  nav{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 20px}
+  nav button{border:1px solid var(--line);background:var(--card);color:var(--sub);padding:9px 15px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600;white-space:nowrap}
+  nav button.active{background:#1f2733;color:#fff;border-color:#1f2733}
+  section{display:none}
+  section.show{display:block}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow);margin-bottom:16px}
+  h2{font-size:18px;margin:0 0 10px}
+  h3{font-size:15px;margin:16px 0 8px}
+  .muted{color:var(--sub);font-size:13px}
+  .ringrow{display:flex;gap:20px;align-items:center;flex-wrap:wrap}
+  .ring{position:relative;width:120px;height:120px;flex:0 0 auto}
+  .ring svg{transform:rotate(-90deg)}
+  .ring .num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .ring .num b{font-size:26px}
+  .ring .num span{font-size:11px;color:var(--sub)}
+  .pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .pill{font-size:12px;padding:4px 10px;border-radius:20px;color:#fff;font-weight:600}
+  .road{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:8px}
+  .wk{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fbfcfe}
+  .wk b{font-size:13px}
+  .wk .who{font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;color:#fff;display:inline-block;margin-bottom:6px}
+  .wk ul{margin:6px 0 0;padding-left:16px;font-size:12px;color:var(--sub)}
+  .lever{background:linear-gradient(120deg,#fff7e6,#fff);border:1px solid #ffe1a8}
+  .lever b{color:var(--mu)}
+  .bar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .bar .tools{display:flex;gap:8px;flex-wrap:wrap}
+  .bar button,.mini{border:1px solid var(--line);background:#fff;color:var(--ink);padding:7px 12px;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600}
+  .bar button.primary{background:#1f2733;color:#fff;border-color:#1f2733}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:8px}
+  .day{aspect-ratio:1;border-radius:10px;border:1px solid var(--line);background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;position:relative;font-weight:700;font-size:15px}
+  .day .t{font-size:8px;margin-top:2px;color:#fff;padding:1px 4px;border-radius:4px;max-width:54px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .day.done{outline:3px solid var(--ok);outline-offset:-3px}
+  .day.today{box-shadow:0 0 0 3px #1f2733}
+  .detail{margin-top:16px}
+  .tag{display:inline-block;font-size:11px;font-weight:700;color:#fff;padding:3px 9px;border-radius:6px;margin-right:6px}
+  .blk{border-left:4px solid var(--line);padding:8px 12px;margin:10px 0;background:#fbfcfe;border-radius:0 10px 10px 0;position:relative}
+  .blk.theory{border-color:var(--andrew)}
+  .blk.case{border-color:var(--cash)}
+  .blk.task{border-color:var(--ok)}
+  .blk h4{margin:0 0 4px;font-size:13px;color:var(--sub)}
+  .hlbtn{float:right;font-size:11px;padding:2px 8px;border:1px solid var(--kakashi);background:#f3effe;color:var(--kakashi);border-radius:7px;cursor:pointer;font-weight:700}
+  mark.hl{background:#fff3a3;color:#1f2733;border-radius:3px;padding:0 2px}
+  .checkrow{display:flex;align-items:center;gap:10px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);flex-wrap:wrap}
+  .checkrow input{width:18px;height:18px}
+  .opcgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+  .opcgrid label{font-size:13px;font-weight:700;display:block;margin-bottom:5px}
+  .opcgrid textarea,.opcgrid input{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px;font-size:13px;font-family:inherit;resize:vertical}
+  .opcgrid textarea{min-height:70px}
+  .savehint{font-size:12px;color:var(--ok);height:16px}
+  .res{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+  .res a{text-decoration:none;color:var(--ink)}
+  .res .r{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff;height:100%}
+  .res .r b{display:block;margin-bottom:4px}
+  .res .r span{font-size:12px;color:var(--sub)}
+  .note{background:#fff7e6;border:1px solid #ffe1a8;border-radius:10px;padding:12px;font-size:13px}
+  .notecompose{display:flex;gap:8px;margin:10px 0 14px;flex-wrap:wrap}
+  .notecompose textarea{flex:1;min-width:200px;min-height:60px;border:1px solid var(--line);border-radius:9px;padding:9px;font-family:inherit;font-size:13px;resize:vertical}
+  .nb{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;background:#fbfcfe}
+  .nb-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}
+  .nb-tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px;color:#fff}
+  .hl-tag{background:var(--kakashi)}
+  .nt-tag{background:var(--andrew)}
+  .nb-day{font-size:12px;color:var(--sub);font-weight:600}
+  .nb-time{font-size:11px;color:#9aa4b2;margin-left:auto}
+  .nb-del{border:none;background:transparent;color:var(--cash);font-size:12px;cursor:pointer;font-weight:700}
+  .nb-text{font-size:13px;white-space:pre-wrap;word-break:break-word}
+  .hi{display:flex;gap:10px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:13px}
+  .hi-time{color:#9aa4b2;font-size:11px;white-space:nowrap;min-width:84px}
+  .hi-text{flex:1}
+  footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
+  @media(max-width:640px){
+    header{padding:16px}
+    header h1{font-size:18px}
+    header p{font-size:12px}
+    .wrap{padding:12px 10px 50px}
+    nav{overflow-x:auto;flex-wrap:nowrap;white-space:nowrap;padding-bottom:6px;-webkit-overflow-scrolling:touch}
+    nav button{font-size:13px;padding:8px 12px}
+    .ringrow{flex-direction:column;align-items:flex-start}
+    .ring{margin:0 auto}
+    .grid{grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:6px}
+    .day{font-size:13px}
+    .day .t{font-size:7px}
+    .card{padding:14px}
+    .opcgrid{grid-template-columns:1fr}
+    h2{font-size:16px}
+    .road{grid-template-columns:1fr 1fr}
+    .hlbtn{font-size:10px;padding:2px 6px}
+    .checkrow label{font-size:13px}
+    #syncBar{font-size:11px;padding:6px 10px}
+    #syncBar button{padding:4px 8px}
+  }
+  @media(max-width:380px){ .road{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div id="syncBar">
+  <span id="syncDot" class="dot off"></span>
+  <span id="syncText">正在连接云端…</span>
+  <button id="btnCopySync">复制同步链接</button>
+  <button id="btnInputSync">输入同步码</button>
+  <button id="btnSyncNow">立即同步</button>
+</div>
+<header>
+  <h1>andy老师 · 3个月AI学习计划器（云端同步版）</h1>
+  <p>吴恩达（懂AI是什么）· 卡卡西（底层逻辑）· 李宏毅（机器学习/深度学习/生成式AI）· 李沐（动手学AI） → 用你的15年运营优势打造OPC变现</p>
+</header>
+<div class="wrap">
+  <nav>
+    <button class="active" data-tab="overview">总览 / 路线图</button>
+    <button data-tab="daily">每日学习</button>
+    <button data-tab="opc">我的OPC画布</button>
+    <button data-tab="notes">学习笔记</button>
+    <button data-tab="history">操作历史</button>
+    <button data-tab="res">课程资源库</button>
+  </nav>
+
+  <section id="overview" class="show">
+    <div class="card">
+      <div class="ringrow">
+        <div class="ring">
+          <svg width="120" height="120">
+            <circle cx="60" cy="60" r="52" stroke="#e6ebf2" stroke-width="12" fill="none"></circle>
+            <circle id="ringFg" cx="60" cy="60" r="52" stroke="#16a34a" stroke-width="12" fill="none" stroke-linecap="round" stroke-dasharray="326.7" stroke-dashoffset="326.7"></circle>
+          </svg>
+          <div class="num"><b id="ringNum">0</b><span>已完成 / 72天</span></div>
+        </div>
+        <div style="flex:1;min-width:240px">
+          <h2 style="margin:0">你的3个月目标</h2>
+          <p class="muted" style="margin:6px 0">从"听过AI"到"运营里最懂AI的人"，并跑通自己的 OPC（一人公司）变现闭环。每天约 <b>45–60分钟</b>：理论（大白话）+ 电商案例 + 1个实操任务。</p>
+          <div class="pills">
+            <span class="pill" style="background:var(--andrew)">吴恩达</span>
+            <span class="pill" style="background:var(--kakashi)">卡卡西</span>
+            <span class="pill" style="background:var(--hungyi)">李宏毅</span>
+            <span class="pill" style="background:var(--mu)">李沐</span>
+            <span class="pill" style="background:var(--cash)">OPC变现</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card lever">
+      <h2>核心心法：3倍杠杆工作流（你 = 指挥官，AI = 3个执行）</h2>
+      <p class="muted">前2个月把"AI认知"打到骨骼里；第3个月用李沐的动手能力 + 你的15年运营/品牌/产品咨询经验，把重复活交给AI，你只做<b>决策、关系、创意</b>三件人类值钱的事。1人产出 = 过去3人的体量，这就是你的OPC护城河。</p>
+    </div>
+    <div class="card">
+      <h2>12周路线图</h2>
+      <div class="road" id="road"></div>
+    </div>
+    <div class="card">
+      <div class="note">
+        <b>云端同步说明：</b>顶部状态条显示同步状态。点「复制同步链接」发给手机/另一台电脑，用同一个链接打开即自动同步进度、笔记、操作历史——<b>换设备不丢、关掉不丢</b>。也可点「输入同步码」手动对齐。所有数据存云端服务器，离线时自动降级为本机缓存。
+      </div>
+    </div>
+  </section>
+
+  <section id="daily">
+    <div class="card">
+      <div class="bar">
+        <div>
+          <h2 style="margin:0">每日学习</h2>
+          <div class="muted" id="dailySub">选一天开始，或点「跳到今日」</div>
+        </div>
+        <div class="tools">
+          <button class="primary" id="btnToday">跳到今日</button>
+          <button id="btnReset">重置进度</button>
+        </div>
+      </div>
+      <div class="grid" id="dayGrid"></div>
+    </div>
+    <div class="card detail" id="detail" style="display:none">
+      <div id="detailHead"></div>
+      <div class="blk theory" data-type="theory"><h4>📘 理论（大白话）<button class="hlbtn" type="button">✏️标记重点</button></h4><div id="dTheory"></div></div>
+      <div class="blk case" data-type="case"><h4>🛒 案例（电商 / 商业）<button class="hlbtn" type="button">✏️标记重点</button></h4><div id="dCase"></div></div>
+      <div class="blk task" data-type="task"><h4>🛠 实操任务<button class="hlbtn" type="button">✏️标记重点</button></h4><div id="dTask"></div></div>
+      <div class="checkrow">
+        <input type="checkbox" id="dCheck">
+        <label for="dCheck">我今天完成了（打卡）</label>
+        <span class="muted" id="dMin"></span>
+      </div>
+    </div>
+  </section>
+
+  <section id="opc">
+    <div class="card">
+      <h2>我的OPC变现画布（一人公司）</h2>
+      <p class="muted">第11–12周集中填。内容自动存云端，跨设备同步。你的优势组合：<b>15年电商运营 + 产品咨询 + 品牌管理 + 货架/兴趣电商双栖</b>。</p>
+      <div class="opcgrid">
+        <div><label>① 产品一句话定位</label><textarea data-opc="pos" placeholder="例：面向敏感肌护肤商家的「AI增长诊断 + 陪跑」服务"></textarea></div>
+        <div><label>② 目标用户（最痛的人）</label><textarea data-opc="user" placeholder="例：抖音敏感肌类目、GMV 50–500万的中小品牌主理人"></textarea></div>
+        <div><label>③ 核心痛点（AI能解）</label><textarea data-opc="pain" placeholder="例：不懂怎么用AI提效、内容产出慢、复盘靠感觉"></textarea></div>
+        <div><label>④ 你的不可替代优势</label><textarea data-opc="adv" placeholder="例：15年踩过的坑 + 品牌调性判断 + 货人匹配直觉"></textarea></div>
+        <div><label>⑤ AI能力（打算用哪些）</label><textarea data-opc="ai" placeholder="例：RAG知识库 + 选品Agent + 多模态出图/视频 + 话术生成"></textarea></div>
+        <div><label>⑥ 交付形式</label><textarea data-opc="deliver" placeholder="例：每月诊断报告(模板)+AI生成、1v1陪跑、迷你训练营"></textarea></div>
+        <div><label>⑦ 定价 / 收费模式</label><textarea data-opc="price" placeholder="例：诊断999/月，陪跑9999/月，训练营1999/人"></textarea></div>
+        <div><label>⑧ 获客渠道</label><textarea data-opc="channel" placeholder="例：短视频干货、行业社群、老客户转介绍"></textarea></div>
+        <div><label>⑨ 3倍杠杆动作（交给AI的活）</label><textarea data-opc="lever" placeholder="例：报告生成、素材生产、数据复盘初稿全部AI化"></textarea></div>
+        <div><label>⑩ 30天行动宣言</label><textarea data-opc="action" placeholder="例：8/20前做完10个种子用户免费诊断，收案例"></textarea></div>
+      </div>
+      <div class="savehint" id="opcHint">已自动保存</div>
+    </div>
+  </section>
+
+  <section id="notes">
+    <div class="card">
+      <h2>📒 我的学习笔记</h2>
+      <p class="muted">在「每日学习」里选中文字 → 点该框右上「✏️标记重点」即可存入；也可在下方写自由笔记。云端同步，跨设备可见。</p>
+      <div class="notecompose">
+        <textarea id="noteInput" placeholder="随手记点什么（可关联的灵感 / 疑问 / 复盘）..."></textarea>
+        <button class="primary" id="btnAddNote">保存笔记</button>
+      </div>
+      <h3>已存笔记 / 重点（共 <span id="noteCount">0</span> 条）</h3>
+      <div id="noteList"></div>
+    </div>
+  </section>
+
+  <section id="history">
+    <div class="card">
+      <div class="bar">
+        <div>
+          <h2 style="margin:0">🕓 操作历史</h2>
+          <div class="muted">每次打卡 / 取消打卡 / 标记重点 / 增删笔记 / 编辑OPC / 重置进度都会记录并云端同步，最多保留300条。</div>
+        </div>
+        <div class="tools"><button id="btnClearHistory">清空历史</button></div>
+      </div>
+      <div id="historyList"></div>
+    </div>
+  </section>
+
+  <section id="res">
+    <div class="card">
+      <h2>四位老师的课程入口</h2>
+      <div class="res">
+        <a href="https://www.coursera.org/learn/ai-for-everyone" target="_blank"><div class="r"><b>吴恩达 · AI for Everyone</b><span>Coursera / deeplearning.ai。打底"AI是什么、能做什么、公司怎么用"。零基础友好。</span></div></a>
+        <a href="https://speech.ee.ntu.edu.tw/~hylee/ml/2024-spring.php" target="_blank"><div class="r"><b>李宏毅 · 机器学习</b><span>台大课程 + B站搬运。ML/DL/生成式AI最系统的中文公开课。</span></div></a>
+        <a href="https://zh.d2l.ai/" target="_blank"><div class="r"><b>李沐 · 动手学深度学习 (D2L)</b><span>zh.d2l.ai 在线书 + B站"跟李沐学AI"。从张量到训练到部署。</span></div></a>
+        <a href="https://search.bilibili.com/all?keyword=%E5%8D%A1%E5%8D%A1%E8%A5%BF%20AI%E5%BA%95%E5%B1%82%E9%80%BB%E8%BE%91" target="_blank"><div class="r"><b>卡卡西 · AI底层运行逻辑</b><span>B站搜索"卡卡西 AI底层逻辑"。用类比把token/attention/训练讲成人话。</span></div></a>
+      </div>
+      <div class="note" style="margin-top:14px">
+        <b>学习顺序建议（和计划器一致）：</b>吴恩达+卡卡西打底（第1–3周）→ 李宏毅机器学习/深度学习/生成式（第4–7周）→ 李沐动手学（第8–10周）→ OPC产品化（第11–12周）。不必先学编程，第8周才碰代码，且全程用AI辅助写。
+      </div>
+    </div>
+  </section>
+
+  <footer>云端同步版 · 进度 / 笔记 / 操作历史 存于云端服务器，跨设备实时同步 · 工作日早8:50 / 晚19:30、周末早8:00 / 下午14:30 自动提醒</footer>
+</div>
+
+<script>
+const TEACHER = {
+  "吴恩达":{c:"var(--andrew)",raw:"#2f6df6"},
+  "卡卡西":{c:"var(--kakashi)",raw:"#8b5cf6"},
+  "李宏毅":{c:"var(--hungyi)",raw:"#16a34a"},
+  "李沐":{c:"var(--mu)",raw:"#f59e0b"},
+  "变现":{c:"var(--cash)",raw:"#ef4444"}
+};
+const DAYS = [
+ {d:1,w:1,t:"吴恩达",title:"什么是AI（破除神秘感）",theory:"AI=让机器从数据里找规律，并做预测/决策。它不是'有意识'，只是很会'猜'。",case:"电商：用历史销量+天气+促销，模型猜明天的订单量。",task:"用大白话给家人解释'AI是什么'，说1分钟。",min:45},
+ {d:2,w:1,t:"吴恩达",title:"机器学习大白话",theory:"机器学习=给一堆'题和答案'(数据)，让机器自己总结出'解题公式'。",case:"用户画像是'题'(行为)，人群标签是'答案'(人群)。",task:"列出你业务中3个能'给题给答案让AI学'的场景。",min:45},
+ {d:3,w:1,t:"吴恩达",title:"监督学习",theory:"有标准答案的学习。输入X→输出Y，模型学两者映射。",case:"输入'浏览/加购'，输出'会不会买'(分类)。",task:"选一个分类场景，写下X和Y分别是什么。",min:45},
+ {d:4,w:1,t:"吴恩达",title:"非监督学习（聚类）",theory:"没有标准答案，让机器自己把相似的聚成一堆。",case:"把客户按消费力/频次自动分群，做差异化运营。",task:"用Excel或AI对你的客户做一次聚类分群。",min:50},
+ {d:5,w:1,t:"吴恩达",title:"深度学习直觉",theory:"深度学习=很多层'神经元'叠起来，自动提取特征。",case:"看商品图：底层认边缘，高层认'是连衣裙'。",task:"搜'神经网络可视化'图，截图存到计划群。",min:45},
+ {d:6,w:1,t:"吴恩达",title:"术语一次说清",theory:"模型=学好的公式；训练=学习过程；推理=用模型预测；参数=公式里的数字。",case:"训练好'差评预测模型'后，每天推理新评论。",task:"做一张'AI术语卡'贴在你工位。",min:40},
+ {d:7,w:2,t:"吴恩达",title:"AI公司的数据飞轮",theory:"AI公司靠'用→产生数据→变更好→更多人用'的飞轮转起来。",case:"抖音推荐：你看得多→更懂你→推更准→看得更多。",task:"画你业务的'数据飞轮'草图。",min:45},
+ {d:8,w:2,t:"吴恩达",title:"AI转型五步法",theory:"吴恩达五步：定场景→验价值→建数据→招人才→迭代。",case:"运营落地：先选1个高频痛点，不全员铺开。",task:"选你业务里最该先AI化的1个场景。",min:45},
+ {d:9,w:2,t:"吴恩达",title:"AI的边界",theory:"AI擅长'有数据有规律'的活；不擅长没数据、要常识/担责的活。",case:"AI能写详情页，但'品牌调性'还得你定。",task:"列'AI能做/不能做'两份清单。",min:40},
+ {d:10,w:2,t:"卡卡西",title:"Token与分词",theory:"模型先把文字切成'词块'(token)再处理。中英文token数不同。",case:"一段中文prompt可能比英文更费token(更贵)。",task:"用token计数器测一段你的直播话术。",min:45},
+ {d:11,w:2,t:"卡卡西",title:"向量 Embeddings",theory:"Embedding把'意思'变成一串数字，意思近的数字也近。",case:"搜'平价敏感肌面霜'，能召回'学生党修护乳'。",task:"体验一次向量搜索(知识库/以图搜图)。",min:45},
+ {d:12,w:2,t:"卡卡西",title:"周复盘 + 能力地图",theory:"本周打底：懂AI是什么、能做什么、底层怎么'懂'语言。",case:"复盘你已能讲清的概念。",task:"在计划里标记本周完成，写3句收获。",min:40},
+ {d:13,w:3,t:"卡卡西",title:"注意力机制",theory:"Attention=处理每个词时，自动给相关词更高权重(找重点)。",case:"读'买给敏感肌妈妈'，模型重点看'敏感肌'。",task:"用一句话向同事解释attention。",min:45},
+ {d:14,w:3,t:"卡卡西",title:"自注意力怎么算",theory:"每个词算'和谁最相关'(打分→softmax→加权求和)。",case:"商品标题里'敏感肌''保湿'会被互相加强。",task:"看卡卡西attention视频，记1个类比。",min:50},
+ {d:15,w:3,t:"卡卡西",title:"上下文窗口",theory:"上下文窗口=模型一次能'看到'的最大文字量(token数)。",case:"长直播复盘塞不进窗口，要分段/摘要。",task:"查你常用模型的上下文长度。",min:40},
+ {d:16,w:3,t:"卡卡西",title:"预训练 vs 微调",theory:"预训练=通才(啥都学点)；微调=专才(你的业务定制)。",case:"通用大模型+你的品牌话术微调=品牌分身。",task:"想一个你最该'微调'的领域。",min:45},
+ {d:17,w:3,t:"卡卡西",title:"推理 Inference",theory:"推理=模型'用学好的本事干活'的阶段，日常用的就是它。",case:"你每次问AI，都是一次推理(按token计费)。",task:"记录今天用了几次AI推理及用途。",min:40},
+ {d:18,w:3,t:"卡卡西",title:"周复盘：运行链路图",theory:"把'输入文字→token→向量→attention→输出'画成一张图。",case:"自己能画=真懂了底层逻辑。",task:"手绘AI运行链路图拍照存档。",min:50},
+ {d:19,w:4,t:"李宏毅",title:"回归（预测数字）",theory:"回归=预测一个连续数字(如价格、销量)。",case:"用广告费/季节预测下月GMV。",task:"用AI帮你做一次销量回归预测。",min:50},
+ {d:20,w:4,t:"李宏毅",title:"损失函数",theory:"损失函数=衡量'预测错多少'，目标是让总错最小。",case:"预测销量差100件，损失就大。",task:"用大白话解释'为什么要有损失函数'。",min:45},
+ {d:21,w:4,t:"李宏毅",title:"梯度下降",theory:"梯度下降=蒙眼下山，每次往'最陡下坡'走一小步。",case:"调投放出价就像找最优解的下山过程。",task:"看李宏毅梯度下降动画，记核心比喻。",min:50},
+ {d:22,w:4,t:"李宏毅",title:"分类",theory:"分类=预测离散类别(买/不买、好评/差评)。",case:"预测新客首单是否转化。",task:"定义你业务中2个分类问题。",min:45},
+ {d:23,w:4,t:"李宏毅",title:"过拟合与正则化",theory:"过拟合=考试背题但不会变通；正则化=逼它学通用规律。",case:"模型只认你历史爆款，新款就懵。",task:"写下你见过的'运营过拟合'现象。",min:45},
+ {d:24,w:4,t:"李宏毅",title:"周复盘 + 跑回归",theory:"本周懂ML两大任务(回归/分类)与训练逻辑。",case:"已能用AI跑一个回归。",task:"在计划标记完成，提交你的回归结果。",min:50},
+ {d:25,w:5,t:"李宏毅",title:"神经元与激活函数",theory:"神经元=加权求和+激活函数(加非线性，能学复杂关系)。",case:"多个神经元叠加能学'复杂消费决策'。",task:"看李宏毅讲解，画一个神经元。",min:50},
+ {d:26,w:5,t:"李宏毅",title:"反向传播",theory:"反向传播=从结果倒推'哪根线该调'，自动算梯度。",case:"和'复盘哪步运营导致转化低'同理。",task:"用类比向朋友解释反向传播。",min:50},
+ {d:27,w:5,t:"李宏毅",title:"CNN（看图）",theory:"CNN=专门看图的网络，自动找边缘/纹理/形状。",case:"主图质检：自动识别牛皮癣/模糊图。",task:"找1个能用CNN的电商场景。",min:50},
+ {d:28,w:5,t:"李宏毅",title:"RNN / LSTM（看序列）",theory:"RNN=能记住前面信息的网络，适合序列(时间/行为)。",case:"根据用户浏览序列预测下一步兴趣。",task:"列出你业务中3个'序列'数据。",min:50},
+ {d:29,w:5,t:"李宏毅",title:"Transformer的位置",theory:"Transformer用attention取代循环，能并行、长依赖更强。",case:"现在主流大模型都基于Transformer。",task:"记'为什么Transformer取代了RNN'。",min:45},
+ {d:30,w:5,t:"李宏毅",title:"周复盘：技术→场景",theory:"深度学习三大件CNN/RNN/Transformer对应图/序列/语言。",case:"映射到你业务的可用场景。",task:"画'技术→我的场景'对照表。",min:50},
+ {d:31,w:6,t:"李宏毅",title:"生成模型概览",theory:"生成模型=学'数据长什么样'，再Sampling造新的。",case:"学上万张商品图，生成新主图。",task:"区分GAN/扩散/自回归各1句。",min:45},
+ {d:32,w:6,t:"李宏毅",title:"扩散模型 Diffusion",theory:"Diffusion=先加噪再学'去噪'，逐步还原清晰图。",case:"AI模特图、场景图都靠扩散。",task:"用AI生图工具做一张商品场景图。",min:50},
+ {d:33,w:6,t:"李宏毅",title:"LLM怎么炼成",theory:"LLM=在超大文本上'预测下一个词'练出来的语言模型。",case:"它懂电商话术是因为'读过'很多。",task:"解释'LLM本质是预测下一个词'。",min:50},
+ {d:34,w:6,t:"李宏毅",title:"预训练 / SFT / 指令微调",theory:"预训练打底→SFT教做事→指令微调对齐人类。",case:"你的品牌助手=SFT后的专属模型。",task:"画LLM训练三阶段图。",min:50},
+ {d:35,w:6,t:"李宏毅",title:"RLHF与人类对齐",theory:"RLHF=用人类反馈打分，让AI更'合人意'(也会讨好)。",case:"AI的'讨好感'来自RLHF，别全信。",task:"举1个AI'过度讨好'的例子。",min:45},
+ {d:36,w:6,t:"李宏毅",title:"周复盘：生成式落点",theory:"生成式AI在电商：图/文/视频/客服/选品全链路。",case:"列出你最想落地的3个生成场景。",task:"在计划标记完成，写生成式机会清单。",min:50},
+ {d:37,w:7,t:"李宏毅",title:"Prompt基础",theory:"Prompt=给AI的任务书：角色+任务+约束+示例。",case:"角色'资深电商运营'，输出更贴行。",task:"为你常做的工作写3条标准prompt。",min:45},
+ {d:38,w:7,t:"李宏毅",title:"少样本 / 思维链CoT",theory:"少样本=给例子；思维链=让它'一步步想'更准。",case:"给AI几个历史爆款，让它仿写。",task:"用CoT让AI拆解一个运营问题。",min:50},
+ {d:39,w:7,t:"李宏毅",title:"微调 vs 提示",theory:"数据少/任务泛→提示；数据多/要专属→微调。",case:"通用分析用提示，品牌口吻用微调。",task:"判断你场景该提示还是微调。",min:45},
+ {d:40,w:7,t:"李宏毅",title:"模型评估",theory:"评估=用指标/人工看AI到底行不行(别凭感觉)。",case:"AI写的话术A/B测试点击率。",task:"设计一个AI产出评估小实验。",min:50},
+ {d:41,w:7,t:"李宏毅",title:"多模态",theory:"多模态=AI同时懂文/图/视频，能跨模态生成。",case:"文生图做主图、文生视频做短视频。",task:"用多模态工具产出1条素材。",min:50},
+ {d:42,w:7,t:"李宏毅",title:"周复盘：提示词库",theory:"本周建起'运营专属提示词库'和评测意识。",case:"提示词是运营的新'工具箱'。",task:"整理你的提示词库v1。",min:45},
+ {d:43,w:8,t:"李沐",title:"环境搭建",theory:"用Colab/Jupyter+Python，AI辅助写代码，不用怕。",case:"让AI帮你装环境、写第一段。",task:"开通Colab，跑通'Hello AI'。",min:60},
+ {d:44,w:8,t:"李沐",title:"张量与数据",theory:"张量=多维数组(数字盒子)，是AI的数据容器。",case:"一张图=3维张量(高×宽×通道)。",task:"用代码打印一个张量形状。",min:55},
+ {d:45,w:8,t:"李沐",title:"跑通线性回归",theory:"李沐第一课：手写/跑通最小回归，理解训练循环。",case:"用销量数据跑一次。",task:"跟着李沐视频跑通线性回归。",min:60},
+ {d:46,w:8,t:"李沐",title:"数据预处理",theory:"脏数据喂进去，出来脏模型；清洗标注是关键。",case:"评论情感数据要先把'好评/差评'标好。",task:"清洗一份你的业务数据。",min:55},
+ {d:47,w:8,t:"李沐",title:"训练循环",theory:"训练=forward算预测→算损失→backward→更新参数，循环。",case:"和'试错迭代'运营节奏一样。",task:"用类比讲清训练循环。",min:50},
+ {d:48,w:8,t:"李沐",title:"周复盘：第一次训练",theory:"本周从'用AI'跨到'让AI学一点东西'。",case:"你已训练过一个模型。",task:"在计划标记完成，记踩的坑。",min:50},
+ {d:49,w:9,t:"李沐",title:"图像分类CNN实战",theory:"用CNN训练'商品类目识别'模型。",case:"上传图自动归到'面霜/精华/洁面'。",task:"跟着李沐做图像分类实验。",min:60},
+ {d:50,w:9,t:"李沐",title:"文本分类实战",theory:"训练'差评预警'模型，自动标风险评论。",case:"差评前置处理，降低退款。",task:"做一个文本分类小模型。",min:60},
+ {d:51,w:9,t:"李沐",title:"序列模型实战",theory:"用序列模型做销量时间序列预测。",case:"预测下周哪天是高峰。",task:"跑一个时序预测demo。",min:60},
+ {d:52,w:9,t:"李沐",title:"微调基础",theory:"微调=拿预训练模型，用你的数据再练一小段。",case:"通用模型微调成'敏感肌顾问'。",task:"理解微调与大模型关系。",min:55},
+ {d:53,w:9,t:"李沐",title:"用现成大模型迁移",theory:"不用从零，调用/微调开源模型省90%力。",case:"用现成LLM做你的业务助手。",task:"选一个可复用的开源模型。",min:50},
+ {d:54,w:9,t:"李沐",title:"周复盘：跨越",theory:"从'用AI'到'训AI'的跨越完成。",case:"建立技术自信。",task:"在计划标记完成，写技术心得。",min:50},
+ {d:55,w:10,t:"李沐",title:"RAG检索增强",theory:"RAG=先查你资料库再回答，让AI'懂你业务'。",case:"搭建品牌客服知识库，AI基于它答。",task:"用AI搭一个RAG知识库demo。",min:60},
+ {d:56,w:10,t:"卡卡西",title:"Agent智能体",theory:"Agent=会自己调用工具/查资料/分步完成任务的AI。",case:"自动选品助手：搜数据→分析→出清单。",task:"设计一个运营Agent流程图。",min:55},
+ {d:57,w:10,t:"李沐",title:"部署与API",theory:"把模型包装成API/网页，别人也能用你的AI。",case:"让你的'差评预警'变成内部工具。",task:"了解一次模型部署流程。",min:55},
+ {d:58,w:10,t:"卡卡西",title:"推理成本",theory:"推理按token/次计费；优化prompt=省钱。",case:"精简prompt降低每次成本。",task:"算你月度AI调用成本。",min:45},
+ {d:59,w:10,t:"卡卡西",title:"安全与幻觉",theory:"幻觉=AI一本正经胡说；要核查+限定范围。",case:"AI编的'成分功效'不能上架。",task:"列AI使用安全红线。",min:45},
+ {d:60,w:10,t:"李沐",title:"周复盘：技术栈",theory:"本周集齐RAG/Agent/部署/成本/安全认知。",case:"你的技术栈清单成型。",task:"整理你的AI技术栈清单。",min:50},
+ {d:61,w:11,t:"变现",title:"优势拆解",theory:"你的15年：产品咨询/品牌管理/货架+兴趣电商运营。",case:"最懂'货'与'人'的运营老兵。",task:"用AI帮你梳理优势清单。",min:50},
+ {d:62,w:11,t:"变现",title:"交叉机会地图",theory:"找'你的优势×AI能力'的交集=你的护城河。",case:"AI×品牌咨询=品牌AI诊断服务。",task:"画'优势×AI'机会矩阵。",min:55},
+ {d:63,w:11,t:"变现",title:"定义产品",theory:"选一种：AI服务/AI工具/AI课程/AI代运营。",case:"比如'敏感肌品牌AI增长顾问'。",task:"写出你的产品一句话定位。",min:50},
+ {d:64,w:11,t:"变现",title:"痛点验证",theory:"用AI做用户访谈/问卷分析，验证真需求。",case:"问100个商家'最痛的AI落地难处'。",task:"用AI生成并分析一份调研。",min:55},
+ {d:65,w:11,t:"变现",title:"MVP设计",theory:"MVP=最小可行产品，先验证再堆功能。",case:"先做一个'直播话术AI体检'小工具。",task:"画出你的MVP草图。",min:55},
+ {d:66,w:11,t:"变现",title:"周复盘：OPC画布",theory:"本周产出你的OPC商业画布v1。",case:"一人公司雏形。",task:"在计划填完OPC画布。",min:50},
+ {d:67,w:12,t:"变现",title:"内容获客",theory:"用AI批量产短视频/图文，低成本获客。",case:"每天3条'AI+电商'干货引流。",task:"用AI产出本周内容日历。",min:55},
+ {d:68,w:12,t:"变现",title:"AI做交付",theory:"把服务流程AI化，1人顶3人(3倍杠杆)。",case:"诊断报告AI生成+你把关。",task:"设计你的AI交付流水线。",min:55},
+ {d:69,w:12,t:"变现",title:"定价收费",theory:"按结果/订阅/项目制定价，OPC轻资产。",case:"诊断999/月，陪跑9999/月。",task:"定你的3档价格。",min:45},
+ {d:70,w:12,t:"变现",title:"3倍杠杆工作流",theory:"把重复活交给AI，你只做决策与关系。",case:"你=指挥官，AI=3个执行。",task:"列出可外包给AI的活。",min:50},
+ {d:71,w:12,t:"变现",title:"公测产品",theory:"找前10个种子用户免费/低价公测。",case:"收集案例做背书。",task:"列出10个目标种子用户。",min:50},
+ {d:72,w:12,t:"变现",title:"毕业",theory:"你已成'运营里最懂AI的人'，OPC启航。",case:"下一步：跑通第一个付费闭环。",task:"写你的30天行动宣言。",min:50}
+];
+const START = new Date("2026-08-13T00:00:00");
+const CACHE_KEY = "aiplan_cache_v2";
+
+/* ---------- cloud store ---------- */
+// API_BASE: 默认同源（由同步后端同一地址托管）；也可通过 ?api=https://你的后端/api 指定独立后端
+const API_BASE = (new URLSearchParams(location.search).get('api')||'').replace(/\/$/,'');
+function apiUrl(p){ return API_BASE ? API_BASE + p : p; }
+const STATE = { progress: [], opc: {}, notes: [], history: [] };
+let UID = null;
+let cloudOk = false;
+let pushTimer = null;
+
+function loadCache(){
+  try{ const c=JSON.parse(localStorage.getItem(CACHE_KEY)); if(c){ STATE.progress=c.progress||[]; STATE.opc=c.opc||{}; STATE.notes=c.notes||[]; STATE.history=c.history||[]; } }catch(e){}
+}
+function saveCache(){ try{ localStorage.setItem(CACHE_KEY, JSON.stringify(STATE)); }catch(e){} }
+function persist(){ saveCache(); schedulePush(); }
+
+function loadProgress(){ return STATE.progress; }
+function saveProgress(p){ STATE.progress=p; persist(); }
+function loadOpc(){ return STATE.opc; }
+function saveOpc(o){ STATE.opc=o; persist(); }
+function loadNotes(){ return STATE.notes; }
+function saveNotes(n){ STATE.notes=n; persist(); }
+function loadHistory(){ return STATE.history; }
+function saveHistory(h){ STATE.history=h; persist(); }
+function logAction(text){ STATE.history.unshift({t:Date.now(),text}); if(STATE.history.length>300) STATE.history.length=300; saveCache(); schedulePush(); renderHistory(); }
+
+async function apiLoad(uid){ const r=await fetch(apiUrl('/api/load?uid='+encodeURIComponent(uid))); if(!r.ok) throw new Error('load'); return await r.json(); }
+async function apiSave(uid,data){ const r=await fetch(apiUrl('/api/save'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid,data})}); if(!r.ok) throw new Error('save'); return true; }
+
+function mergeState(local, remote){
+  if(!remote) return local;
+  const out={progress:[],opc:{},notes:[],history:[]};
+  out.progress=Array.from(new Set([...(local.progress||[]),...(remote.progress||[])])).sort((a,b)=>a-b);
+  const opc={...(remote.opc||{})};
+  for(const k in (local.opc||{})){ const v=local.opc[k]; if(v&&String(v).trim()) opc[k]=v; }
+  out.opc=opc;
+  const notes=[...(remote.notes||[])];
+  (local.notes||[]).forEach(n=>{ if(!notes.find(x=>x.type===n.type&&x.text===n.text&&x.day===n.day)) notes.unshift(n); });
+  out.notes=notes.slice(0,500);
+  const hist=[...(remote.history||[])];
+  (local.history||[]).forEach(h=>{ if(!hist.find(x=>x.t===h.t&&x.text===h.text)) hist.unshift(h); });
+  out.history=hist.slice(0,300);
+  return out;
+}
+
+function schedulePush(){ clearTimeout(pushTimer); pushTimer=setTimeout(doPush,1000); }
+async function doPush(){
+  if(!UID||!cloudOk) return;
+  setStatus('syncing');
+  try{
+    const remote=await apiLoad(UID);
+    const merged=mergeState(STATE,remote);
+    STATE.progress=merged.progress; STATE.opc=merged.opc; STATE.notes=merged.notes; STATE.history=merged.history;
+    saveCache();
+    await apiSave(UID,STATE);
+    applyStateToUI();
+    setStatus('online');
+  }catch(e){ setStatus('offline'); }
+}
+async function pull(){
+  if(!UID||!cloudOk) return;
+  try{
+    const remote=await apiLoad(UID);
+    const merged=mergeState(STATE,remote);
+    const changed=JSON.stringify(merged)!==JSON.stringify(STATE);
+    STATE.progress=merged.progress; STATE.opc=merged.opc; STATE.notes=merged.notes; STATE.history=merged.history;
+    saveCache();
+    if(changed) applyStateToUI();
+    setStatus('online');
+  }catch(e){ setStatus('offline'); }
+}
+function applyStateToUI(){
+  updateRing(); refreshGrid(); applyOpcToUI(); renderNotes(); renderHistory();
+  if(currentDay!=null){ const cb=document.getElementById('dCheck'); if(cb && document.activeElement!==cb) cb.checked=STATE.progress.includes(currentDay); }
+}
+function applyOpcToUI(){ document.querySelectorAll('[data-opc]').forEach(el=>{ if(document.activeElement!==el) el.value=STATE.opc[el.dataset.opc]||''; }); }
+
+function getUid(){
+  const params=new URLSearchParams(location.search);
+  let uid=params.get('sync');
+  if(!uid){
+    uid=Math.random().toString(36).slice(2,10);
+    params.set('sync',uid);
+    history.replaceState(null,'',location.pathname+'?'+params.toString());
+  }
+  return uid;
+}
+function setStatus(s){
+  const dot=document.getElementById('syncDot'); const txt=document.getElementById('syncText');
+  if(s==='online'){ dot.className='dot on'; txt.textContent='云端已同步 · 同步码 '+UID; }
+  else if(s==='syncing'){ dot.className='dot sync'; txt.textContent='同步中…'; }
+  else { dot.className='dot off'; txt.textContent='未连云端 · 仅本机缓存（同步码 '+UID+'）'; }
+}
+
+document.getElementById('btnCopySync').onclick=()=>{
+  navigator.clipboard.writeText(location.href).then(()=>alert('同步链接已复制，用手机或另一台设备打开即可同步')).catch(()=>prompt('复制此链接：',location.href));
+};
+document.getElementById('btnInputSync').onclick=()=>{
+  const code=prompt('输入对方的同步码（或直接粘贴完整同步链接）：');
+  if(!code) return;
+  const m=code.match(/sync=([a-z0-9]+)/i);
+  const uid=m?m[1]:code.trim();
+  const params=new URLSearchParams(location.search); params.set('sync',uid);
+  location.search=params.toString();
+};
+document.getElementById('btnSyncNow').onclick=()=>{
+  if(!UID) return;
+  if(!cloudOk){ setStatus('offline'); alert('未连接到云端同步服务。\n若你是把本页面单独托管/本地打开的，请通过 ?api=你的后端地址/api 指定同步后端后再打开；\n若是用云端版链接打开的，请稍候或检查网络。'); return; }
+  setStatus('syncing');
+  (async()=>{ await doPush(); await pull(); })();
+};
+
+/* ---------- helpers ---------- */
+function fmtTime(ts){ const d=new Date(ts); const p=n=>String(n).padStart(2,'0'); return `${d.getMonth()+1}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+function escapeHtml(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function modLabel(m){ return m==='theory'?'理论':m==='case'?'案例':m==='task'?'任务':'笔记'; }
+
+/* nav */
+document.querySelectorAll("nav button").forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+    document.querySelectorAll("section").forEach(s=>s.classList.remove("show"));
+    b.classList.add("active");
+    document.getElementById(b.dataset.tab).classList.add("show");
+    if(b.dataset.tab==="notes") renderNotes();
+    if(b.dataset.tab==="history") renderHistory();
+  };
+});
+
+/* overview road */
+(function(){
+  const weeks=[
+    {w:1,t:"吴恩达",t1:"什么是AI",items:["AI/ML/DL是什么","监督/非监督学习","深度学习直觉","术语卡"]},
+    {w:2,t:"吴恩达+卡卡西",t1:"AI公司与底层直觉",items:["数据飞轮","AI转型五步","token与向量","能力地图"]},
+    {w:3,t:"卡卡西",t1:"Transformer底层",items:["注意力机制","自注意力","上下文窗口","运行链路图"]},
+    {w:4,t:"李宏毅",t1:"机器学习基础",items:["回归","损失函数","梯度下降","分类/过拟合"]},
+    {w:5,t:"李宏毅",t1:"深度学习",items:["神经元","反向传播","CNN/RNN","Transformer"]},
+    {w:6,t:"李宏毅",t1:"生成式AI",items:["生成模型","扩散模型","LLM训练","RLHF"]},
+    {w:7,t:"李宏毅",t1:"大模型应用",items:["Prompt","CoT","评估","多模态"]},
+    {w:8,t:"李沐",t1:"动手·基础",items:["环境","张量","线性回归","训练循环"]},
+    {w:9,t:"李沐",t1:"动手·深度",items:["图像分类","文本分类","序列模型","微调"]},
+    {w:10,t:"李沐+卡卡西",t1:"进阶实战",items:["RAG","Agent","部署/API","成本/安全"]},
+    {w:11,t:"变现",t1:"OPC产品化",items:["优势拆解","机会地图","定义产品","MVP"]},
+    {w:12,t:"变现",t1:"上线放大",items:["内容获客","AI交付","定价","3倍杠杆"]}
+  ];
+  const road=document.getElementById("road");
+  weeks.forEach(wk=>{
+    const who=TEACHER[wk.t.split("+")[0]]?wk.t.split("+")[0]:wk.t;
+    const color=TEACHER[wk.t]?TEACHER[wk.t].raw:(TEACHER[wk.t.split("+")[0]]?TEACHER[wk.t.split("+")[0]].raw:"#888");
+    const div=document.createElement("div");div.className="wk";
+    div.innerHTML=`<div class="who" style="background:${color}">第${wk.w}周 · ${wk.t}</div><b>${wk.t1}</b><ul>${wk.items.map(i=>`<li>${i}</li>`).join("")}</ul>`;
+    road.appendChild(div);
+  });
+})();
+
+function updateRing(){
+  const p=STATE.progress;
+  const n=p.length, total=DAYS.length;
+  const pct=n/total;
+  document.getElementById("ringNum").textContent=n;
+  const C=2*Math.PI*52;
+  document.getElementById("ringFg").setAttribute("stroke-dashoffset", (C*(1-pct)).toFixed(1));
+  document.getElementById("ringFg").setAttribute("stroke", n>=total?"#16a34a":"#2f6df6");
+}
+
+/* daily grid */
+function todayIndex(){
+  const now=new Date();
+  const diff=Math.floor((now-START)/86400000);
+  return diff+1;
+}
+let currentDay=null;
+(function(){
+  const grid=document.getElementById("dayGrid");
+  DAYS.forEach(day=>{
+    const el=document.createElement("div");
+    el.className="day";el.dataset.d=day.d;
+    el.innerHTML=`${day.d}<span class="t" style="background:${TEACHER[day.t].raw}">${day.t}</span>`;
+    el.onclick=()=>showDay(day.d);
+    grid.appendChild(el);
+  });
+  refreshGrid();
+})();
+
+function refreshGrid(){
+  const p=STATE.progress;
+  const ti=todayIndex();
+  document.querySelectorAll(".day").forEach(el=>{
+    const d=+el.dataset.d;
+    el.classList.toggle("done", p.includes(d));
+    el.classList.toggle("today", d===ti);
+  });
+}
+
+function showDay(d){
+  const day=DAYS.find(x=>x.d===d);
+  if(!day)return;
+  currentDay=day.d;
+  document.getElementById("detail").style.display="block";
+  document.getElementById("detailHead").innerHTML=
+    `<span class="tag" style="background:${TEACHER[day.t].raw}">${day.t}</span><b style="font-size:17px">第${day.d}天 · ${day.title}</b>`;
+  document.getElementById("dTheory").textContent=day.theory;
+  document.getElementById("dCase").textContent=day.case;
+  document.getElementById("dTask").textContent=day.task;
+  document.getElementById("dMin").textContent=`⏱ 预计 ${day.min} 分钟`;
+  applyHighlights(day.d);
+  const cb=document.getElementById("dCheck");
+  cb.checked=STATE.progress.includes(day.d);
+  cb.onchange=()=>{
+    let cur=STATE.progress.slice();
+    if(cb.checked){ if(!cur.includes(day.d)){cur.push(day.d); logAction(`打卡 第${day.d}天`);} }
+    else{ cur=cur.filter(x=>x!==day.d); logAction(`取消打卡 第${day.d}天`); }
+    saveProgress(cur);updateRing();refreshGrid();
+  };
+  document.getElementById("dailySub").textContent=`第${day.w}周 · 共72天 · 已完成 ${STATE.progress.length} 天`;
+  document.getElementById("detail").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+/* highlight re-apply */
+const idMap={theory:"dTheory",case:"dCase",task:"dTask"};
+function applyHighlights(day){
+  Object.entries(idMap).forEach(([type,id])=>{
+    const el=document.getElementById(id);
+    const notes=STATE.notes.filter(n=>n.type==="hl"&&n.day===day&&n.module===type);
+    notes.forEach(n=>highlightTextInElement(el,n.text));
+  });
+}
+function highlightTextInElement(el,text){
+  if(!text||!el)return;
+  const walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);
+  const nodes=[]; let node;
+  while(node=walker.nextNode()){ if(node.parentElement&&node.parentElement.closest("mark"))continue; nodes.push(node); }
+  for(const n of nodes){
+    const idx=n.nodeValue.indexOf(text);
+    if(idx>=0){
+      const range=document.createRange();range.setStart(n,idx);range.setEnd(n,idx+text.length);
+      const mark=document.createElement("mark");mark.className="hl";
+      try{range.surroundContents(mark);}catch(e){}
+      return;
+    }
+  }
+}
+
+/* highlight buttons */
+document.querySelectorAll(".hlbtn").forEach(btn=>{
+  btn.addEventListener("mousedown",e=>e.preventDefault());
+  btn.onclick=()=>{
+    const blk=btn.closest(".blk");
+    const type=blk.dataset.type;
+    const day=currentDay;
+    const sel=window.getSelection();
+    const text=sel.toString().trim();
+    if(!text){ alert("请先在上方文字里选中要标记的重点，再点此按钮"); return; }
+    let node=sel.anchorNode;
+    const inBlk=(node&&node.nodeType===3)?node.parentElement:node;
+    if(!inBlk||!blk.contains(inBlk)){ alert("请选择本框内的文字再标记"); return; }
+    try{ const r=sel.getRangeAt(0); const m=document.createElement("mark"); m.className="hl"; r.surroundContents(m); }
+    catch(e){ const r=sel.getRangeAt(0); const f=r.extractContents(); const m=document.createElement("mark"); m.className="hl"; m.appendChild(f); r.insertNode(m); }
+    const arr=STATE.notes.slice(); arr.unshift({type:"hl",day,module:type,text,ts:Date.now()}); saveNotes(arr);
+    logAction(`标记重点 第${day}天·${modLabel(type)}`);
+    sel.removeAllRanges(); renderNotes();
+  };
+});
+
+document.getElementById("btnToday").onclick=()=>{
+  let ti=todayIndex();
+  if(ti<1)ti=1; if(ti>72)ti=72;
+  showDay(ti);
+};
+document.getElementById("btnReset").onclick=()=>{
+  if(confirm("确定重置全部学习进度？OPC画布、笔记、操作历史不会删。")){ saveProgress([]);updateRing();refreshGrid(); logAction("重置学习进度"); }
+};
+
+/* OPC */
+let opcLogTimer=null;
+(function(){
+  applyOpcToUI();
+  document.querySelectorAll("[data-opc]").forEach(el=>{
+    el.oninput=()=>{
+      const d=STATE.opc; d[el.dataset.opc]=el.value; saveOpc(d);
+      const h=document.getElementById("opcHint");h.textContent="已自动保存 ✓";
+      setTimeout(()=>h.textContent="已自动保存",1200);
+      clearTimeout(opcLogTimer);
+      const label=el.previousElementSibling?el.previousElementSibling.textContent.replace(/^[①-⑩]\s*/,""):el.dataset.opc;
+      opcLogTimer=setTimeout(()=>logAction(`编辑OPC·${label}`),1500);
+    };
+  });
+})();
+
+/* notes */
+function renderNotes(){
+  const notes=STATE.notes;
+  document.getElementById("noteCount").textContent=notes.length;
+  const list=document.getElementById("noteList");
+  if(!notes.length){ list.innerHTML='<p class="muted">还没有笔记，去「每日学习」圈点重点，或上面写一条。</p>'; return; }
+  list.innerHTML=notes.map((n,i)=>`
+    <div class="nb">
+      <div class="nb-top">
+        <span class="nb-tag ${n.type==="hl"?"hl-tag":"nt-tag"}">${n.type==="hl"?"圈选重点":"笔记"}</span>
+        ${n.day?`<span class="nb-day">第${n.day}天·${n.module?modLabel(n.module):""}</span>`:""}
+        <span class="nb-time">${fmtTime(n.ts)}</span>
+        <button class="nb-del" data-i="${i}">删除</button>
+      </div>
+      <div class="nb-text">${escapeHtml(n.text)}</div>
+    </div>`).join("");
+  list.querySelectorAll(".nb-del").forEach(b=>b.onclick=()=>{
+    const arr=STATE.notes.slice(); arr.splice(+b.dataset.i,1); saveNotes(arr); logAction("删除笔记"); renderNotes();
+  });
+}
+document.getElementById("btnAddNote").onclick=()=>{
+  const ta=document.getElementById("noteInput");
+  const v=ta.value.trim();
+  if(!v){ alert("先写点内容再保存"); return; }
+  const arr=STATE.notes.slice(); arr.unshift({type:"note",text:v,ts:Date.now()}); saveNotes(arr);
+  ta.value=""; logAction("添加笔记"); renderNotes();
+};
+
+/* history */
+function renderHistory(){
+  const h=STATE.history;
+  const el=document.getElementById("historyList");
+  if(!h.length){ el.innerHTML='<p class="muted">暂无操作记录。</p>'; return; }
+  el.innerHTML=h.map(x=>`<div class="hi"><span class="hi-time">${fmtTime(x.t)}</span><span class="hi-text">${escapeHtml(x.text)}</span></div>`).join("");
+}
+document.getElementById("btnClearHistory").onclick=()=>{
+  if(confirm("清空全部操作历史？（笔记和进度不受影响）")){ saveHistory([]); renderHistory(); }
+};
+
+/* init */
+loadCache();
+UID=getUid();
+setStatus('syncing');
+updateRing(); refreshGrid(); applyOpcToUI(); renderNotes(); renderHistory();
+(async()=>{
+  try{
+    const r=await fetch(apiUrl('/api/ping')); const j=await r.json();
+    cloudOk = !!(j && j.mode==='node');
+  }catch(e){ cloudOk=false; }
+  if(cloudOk){ await pull(); setInterval(pull, 30000); }
+  else setStatus('offline');
+})();
+</script>
+</body>
+</html>
