@@ -173,7 +173,7 @@
     </div>
     <div class="card">
       <div class="note">
-        <b>云端同步说明：</b>顶部状态条显示同步状态。点「复制同步链接」发给手机/另一台电脑，用同一个链接打开即自动同步进度、笔记、操作历史——<b>换设备不丢、关掉不丢</b>。也可点「输入同步码」手动对齐。所有数据存云端服务器，离线时自动降级为本机缓存。
+        <b>云端同步说明：</b>顶部状态条显示同步状态。点「复制同步链接」发给手机/另一台电脑，用同一个链接打开即自动同步进度、笔记、操作历史——<b>换设备不丢、关掉不丢</b>。也可点「输入同步码」手动对齐。数据存于云端（推荐 Gitee，国内可访问；或 GitHub Gist / 自建服务器），离线时自动降级为本机缓存。
       </div>
     </div>
   </section>
@@ -266,7 +266,7 @@
     </div>
   </section>
 
-  <footer>云端同步版 · 进度 / 笔记 / 操作历史 存于云端（GitHub Gist 或自建服务器），跨设备实时同步 · 工作日早8:50 / 晚19:30、周末早8:00 / 下午14:30 自动提醒</footer>
+  <footer>云端同步版 · 进度 / 笔记 / 操作历史 存于云端（推荐 Gitee，国内可访问；或 GitHub Gist / 自建服务器），跨设备实时同步 · 工作日早8:50 / 晚19:30、周末早8:00 / 下午14:30 自动提醒</footer>
 </div>
 
 <script>
@@ -354,42 +354,65 @@ const DAYS = [
 const START = new Date("2026-08-13T00:00:00");
 const CACHE_KEY = "aiplan_cache_v2";
 
-/* ---------- cloud store ---------- */
-// 两种云端后端：
-//  1) 服务器模式（?api= 或同源托管）：用现有 Node server.js 的 /api/* 接口
-//  2) Gist 模式（?gist=<ID>）：用 GitHub Gist 作共享存储——无需任何服务器、免费、永久、不用绑卡
-const API_BASE = (new URLSearchParams(location.search).get('api')||'').replace(/\/$/,'');
-const GIST_ID = (new URLSearchParams(location.search).get('gist')||localStorage.getItem('aiplan_gist_id')||'').trim();
+/* ---------- cloud store (3 modes) ---------- */
+// 三种云端后端：
+//  1) 服务器模式（?api= 或同源托管）：Node server.js 的 /api/* 接口
+//  2) Gist 模式（?gist=<ID>）：GitHub Gist 作共享存储（需能访问 github）
+//  3) Gitee 模式（?gitee=owner/repo）：Gitee 仓库文件作共享存储（国内可访问，推荐）
+const params0 = new URLSearchParams(location.search);
+const API_BASE = (params0.get('api')||'').replace(/\/$/,'');
+const GIST_ID = (params0.get('gist')||localStorage.getItem('aiplan_gist_id')||'').trim();
+const GITEE_REPO = (params0.get('gitee')||localStorage.getItem('aiplan_gitee_repo')||'').trim();
+const GIST_TOKEN = localStorage.getItem('aiplan_gist_token')||'';
+const GITEE_TOKEN = localStorage.getItem('aiplan_gitee_token')||'';
 function apiUrl(p){ return API_BASE ? API_BASE + p : p; }
+function b64encUtf8(s){ return btoa(unescape(encodeURIComponent(s))); }
+function b64decUtf8(b){ return decodeURIComponent(escape(atob((b||'').replace(/\s/g,'')))); }
 function gistHeaders(extra){ return Object.assign({'Accept':'application/vnd.github+json'}, extra||{}); }
 async function gistLoad(){
   const r=await fetch('https://api.github.com/gists/'+GIST_ID,{headers:gistHeaders({'Authorization':'token '+GIST_TOKEN})});
   if(!r.ok) throw new Error('gist load '+r.status);
-  const j=await r.json();
-  const f=j.files&&j.files['state.json'];
+  const j=await r.json(); const f=j.files&&j.files['state.json'];
   return f? JSON.parse(f.content||'{}') : {};
 }
 async function gistSave(data){
-  const r=await fetch('https://api.github.com/gists/'+GIST_ID,{
-    method:'PATCH',
-    headers:gistHeaders({'Authorization':'token '+GIST_TOKEN,'Content-Type':'application/json'}),
-    body:JSON.stringify({files:{'state.json':{content:JSON.stringify(data)}}})
-  });
+  const r=await fetch('https://api.github.com/gists/'+GIST_ID,{method:'PATCH',headers:gistHeaders({'Authorization':'token '+GIST_TOKEN,'Content-Type':'application/json'}),body:JSON.stringify({files:{'state.json':{content:JSON.stringify(data)}}})});
   if(!r.ok) throw new Error('gist save '+r.status);
 }
 async function gistCreate(){
-  const r=await fetch('https://api.github.com/gists',{
-    method:'POST',
-    headers:gistHeaders({'Authorization':'token '+GIST_TOKEN,'Content-Type':'application/json'}),
-    body:JSON.stringify({description:'AI学习计划器云端同步',public:false,files:{'state.json':{content:'{}'}}})
-  });
+  const r=await fetch('https://api.github.com/gists',{method:'POST',headers:gistHeaders({'Authorization':'token '+GIST_TOKEN,'Content-Type':'application/json'}),body:JSON.stringify({description:'AI学习计划器云端同步',public:false,files:{'state.json':{content:'{}'}}})});
   if(!r.ok) throw new Error('gist create '+r.status);
   const j=await r.json(); return j.id;
 }
+/* --- Gitee --- */
+async function giteeApi(path, opts){
+  opts=opts||{}; opts.headers=Object.assign({'Authorization':'token '+GITEE_TOKEN,'Accept':'application/json'},opts.headers||{});
+  const r=await fetch('https://gitee.com/api/v5'+path, opts);
+  if(!r.ok){ let m=''; try{m=(await r.json()).message||'';}catch(e){} throw new Error('gitee '+r.status+' '+(m||'')); }
+  return await r.json();
+}
+async function giteeLoad(){
+  const [o,rep]=GITEE_REPO.split('/');
+  const j=await giteeApi(`/repos/${o}/${rep}/contents/state.json`);
+  return JSON.parse(b64decUtf8(j.content)||'{}');
+}
+async function giteeSave(data){
+  const [o,rep]=GITEE_REPO.split('/');
+  let sha=null;
+  try{ const cur=await giteeApi(`/repos/${o}/${rep}/contents/state.json`); sha=cur.sha; }catch(e){}
+  const body={message:'sync update', content:b64encUtf8(JSON.stringify(data))};
+  if(sha) body.sha=sha;
+  await giteeApi(`/repos/${o}/${rep}/contents/state.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+}
+async function giteeCreateRepo(){
+  const name='ai-planner-sync';
+  try{ await giteeApi('/user/repos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,private:true,auto_init:true,description:'AI学习计划器云端同步'})}); }
+  catch(e){ /* 409 已存在则直接使用 */ }
+  return name;
+}
 const STATE = { progress: [], opc: {}, notes: [], history: [] };
 let UID = null;
-let GIST_TOKEN = localStorage.getItem('aiplan_gist_token')||'';
-let MODE = GIST_ID ? 'gist' : 'server';
+let MODE = GITEE_REPO ? 'gitee' : (GIST_ID ? 'gist' : 'server');
 let cloudOk = false;
 let pushTimer = null;
 
@@ -411,10 +434,12 @@ function logAction(text){ STATE.history.unshift({t:Date.now(),text}); if(STATE.h
 
 async function apiLoad(uid){
   if(MODE==='gist') return await gistLoad();
+  if(MODE==='gitee') return await giteeLoad();
   const r=await fetch(apiUrl('/api/load?uid='+encodeURIComponent(uid))); if(!r.ok) throw new Error('load'); return await r.json();
 }
 async function apiSave(uid,data){
   if(MODE==='gist'){ await gistSave(data); return true; }
+  if(MODE==='gitee'){ await giteeSave(data); return true; }
   const r=await fetch(apiUrl('/api/save'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid,data})}); if(!r.ok) throw new Error('save'); return true;
 }
 
@@ -480,22 +505,24 @@ function getUid(){
 }
 function setStatus(s){
   const dot=document.getElementById('syncDot'); const txt=document.getElementById('syncText');
-  const tag = MODE==='gist' ? 'Gist云端' : ('同步码 '+UID);
+  const tag = MODE==='gist' ? 'Gist云端' : (MODE==='gitee' ? 'Gitee云端' : ('同步码 '+UID));
   if(s==='online'){ dot.className='dot on'; txt.textContent='已同步 · '+tag; }
   else if(s==='syncing'){ dot.className='dot sync'; txt.textContent='同步中…'; }
   else { dot.className='dot off'; txt.textContent='未连云端 · 仅本机缓存（'+tag+'）'; }
 }
 
 document.getElementById('btnCopySync').onclick=()=>{
-  if(MODE==='gist' && !location.search.includes('gist=')){
-    const p=new URLSearchParams(location.search); p.set('gist',GIST_ID); history.replaceState(null,'',location.pathname+'?'+p.toString());
-  }
+  const p=new URLSearchParams(location.search);
+  if(MODE==='gist' && !p.has('gist') && GIST_ID){ p.set('gist',GIST_ID); history.replaceState(null,'',location.pathname+'?'+p.toString()); }
+  if(MODE==='gitee' && !p.has('gitee') && GITEE_REPO){ p.set('gitee',GITEE_REPO); history.replaceState(null,'',location.pathname+'?'+p.toString()); }
   navigator.clipboard.writeText(location.href).then(()=>alert('同步链接已复制，用手机或另一台设备打开即可同步')).catch(()=>prompt('复制此链接：',location.href));
 };
 document.getElementById('btnInputSync').onclick=()=>{
-  const code=prompt('输入同步码 / 同步链接：\n· Gist 模式粘贴 ?gist= 链接\n· 服务器模式粘贴 ?sync= 链接');
+  const code=prompt('输入同步码 / 同步链接：\n· Gitee 模式粘贴 ?gitee=owner/repo 链接\n· Gist 模式粘贴 ?gist= 链接\n· 服务器模式粘贴 ?sync= 链接');
   if(!code) return;
-  let m=code.match(/gist=([a-z0-9]+)/i);
+  let m=code.match(/gitee=([a-z0-9_-]+\/[a-z0-9_-]+)/i);
+  if(m){ localStorage.setItem('aiplan_gitee_repo',m[1]); const p=new URLSearchParams(location.search); p.set('gitee',m[1]); location.search=p.toString(); return; }
+  m=code.match(/gist=([a-z0-9]+)/i);
   if(m){ localStorage.setItem('aiplan_gist_id',m[1]); const p=new URLSearchParams(location.search); p.set('gist',m[1]); location.search=p.toString(); return; }
   m=code.match(/sync=([a-z0-9]+)/i);
   const uid=m?m[1]:code.trim();
@@ -503,7 +530,13 @@ document.getElementById('btnInputSync').onclick=()=>{
   location.search=params.toString();
 };
 document.getElementById('btnSyncNow').onclick=async()=>{
-  // ---- Gist 模式 ----
+  if(MODE==='gitee'){
+    if(!GITEE_TOKEN){ const t=prompt('Gitee 云端同步需要 Gitee 私人令牌（只需 projects 权限）。粘贴你的 token：'); if(!t){ return; } GITEE_TOKEN=t.trim(); localStorage.setItem('aiplan_gitee_token',GITEE_TOKEN); }
+    if(!GITEE_REPO){ await setupGitee(); return; }
+    setStatus('syncing');
+    try{ await doPush(); await pull(); }catch(e){ setStatus('offline'); alert('同步失败：'+e.message); }
+    return;
+  }
   if(MODE==='gist'){
     if(!GIST_TOKEN){ if(!showGistTokenPrompt()){ return; } }
     if(!GIST_ID){
@@ -520,29 +553,37 @@ document.getElementById('btnSyncNow').onclick=async()=>{
   // ---- Server 模式 ----
   if(!UID) return;
   if(!cloudOk){
-    /* 无后端 → 引导切 Gist 模式 */
-    const switchGist=confirm(
-      '未检测到同步服务器。\n\n'+
-      '要开启免费云端同步吗？\n（使用 GitHub Gist，只需一个 gist 权限的 Token，无需任何服务器）'
-    );
-    if(switchGist){
-      if(showGistTokenPrompt()){
-        try{
-          const id=await gistCreate();
-          localStorage.setItem('aiplan_gist_id',id);
-          MODE='gist';
-          const p=new URLSearchParams(location.search); p.set('gist',id); history.replaceState(null,'',location.pathname+'?'+p.toString());
-          cloudOk=true;
-          await doPush();
-          setStatus('online');
-          alert('✅ 云端同步已开启！\n\n点「复制同步链接」发给另一台设备即可跨设备同步。');
-        }catch(e){ alert('Gist 创建失败：'+e.message+'\n请检查 token 是否有 gist 权限。'); setStatus('offline'); }
-      }
-    }
+    const choice=confirm('未检测到同步服务器。\n\n点「确定」= 用 Gitee 云端同步（推荐·国内可访问·免费）\n点「取消」= 用 GitHub Gist（需能访问 github）');
+    if(choice){ await setupGitee(); }
+    else { await setupGist(); }
     return;
   }
   setStatus('syncing'); await doPush(); await pull();
 };
+
+async function setupGitee(){
+  const t=prompt('Gitee 云端同步需要 Gitee 私人令牌（只需 projects 权限）：\n去 https://gitee.com/profile/personal_access_tokens 生成', GITEE_TOKEN||'');
+  if(!t||!t.trim()){ return; }
+  GITEE_TOKEN=t.trim(); localStorage.setItem('aiplan_gitee_token',GITEE_TOKEN);
+  try{
+    const owner=(await giteeApi('/user')).login;
+    const name=await giteeCreateRepo();
+    const full=owner+'/'+name;
+    localStorage.setItem('aiplan_gitee_repo',full); MODE='gitee';
+    const p=new URLSearchParams(location.search); p.set('gitee',full); history.replaceState(null,'',location.pathname+'?'+p.toString());
+    cloudOk=true; await doPush(); setStatus('online');
+    alert('✅ 云端同步已开启（Gitee）！\n\n点「复制同步链接」发给另一台设备即可跨设备同步。');
+  }catch(e){ alert('Gitee 同步开启失败：'+e.message+'\n请检查 token 是否有 projects 权限。'); setStatus('offline'); }
+}
+async function setupGist(){
+  if(!showGistTokenPrompt()){ return; }
+  try{
+    const id=await gistCreate(); localStorage.setItem('aiplan_gist_id',id); MODE='gist';
+    const p=new URLSearchParams(location.search); p.set('gist',id); history.replaceState(null,'',location.pathname+'?'+p.toString());
+    cloudOk=true; await doPush(); setStatus('online');
+    alert('✅ 云端同步已开启（GitHub Gist）！\n\n点「复制同步链接」发给另一台设备即可跨设备同步。');
+  }catch(e){ alert('Gist 创建失败：'+e.message+'\n请检查 token 是否有 gist 权限。'); setStatus('offline'); }
+}
 
 /* ---------- helpers ---------- */
 function fmtTime(ts){ const d=new Date(ts); const p=n=>String(n).padStart(2,'0'); return `${d.getMonth()+1}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
@@ -783,11 +824,16 @@ function showGistTokenPrompt(){
 }
 
 (async()=>{
-  if(MODE==='gist'){
-    if(!GIST_TOKEN){ showGistTokenPrompt(); setStatus('offline'); return; }
+  if(MODE==='gitee'){
+    if(!GITEE_TOKEN){ setStatus('offline'); return; }
+    try{ await giteeLoad(); cloudOk=true; }catch(e){ cloudOk=false; }
+    if(cloudOk){ await pull(); setInterval(pull, 30000); setStatus('online'); }
+    else setStatus('offline'); /* token 或仓库有问题，点"立即同步"重试 */
+  } else if(MODE==='gist'){
+    if(!GIST_TOKEN){ setStatus('offline'); return; }
     try{ await gistLoad(); cloudOk=true; }catch(e){ cloudOk=false; }
     if(cloudOk){ await pull(); setInterval(pull, 30000); setStatus('online'); }
-    else { setStatus('offline'); /* token 或 gist ID 有问题，让用户点"立即同步"重试 */ }
+    else setStatus('offline');
   } else {
     try{
       const r=await fetch(apiUrl('/api/ping')); const j=await r.json();
@@ -796,25 +842,10 @@ function showGistTokenPrompt(){
     if(cloudOk){
       await pull(); setInterval(pull, 30000); setStatus('online');
     } else {
-      /* 无服务器后端 → 自动引导切换到 Gist 模式 */
-      if(showGistTokenPrompt()){
-        // 用户输入了 token → 尝试创建 Gist 并切换模式
-        try{
-          const id=await gistCreate();
-          localStorage.setItem('aiplan_gist_id',id);
-          MODE='gist';
-          const p=new URLSearchParams(location.search); p.set('gist',id); history.replaceState(null,'',location.pathname+'?'+p.toString());
-          cloudOk=true;
-          await doPush();
-          setStatus('online');
-          alert('✅ 云端同步已开启！\n\n已创建你的云端笔记本（秘密 Gist）。\n点顶部「复制同步链接」发给手机/另一台电脑即可跨设备同步。');
-        }catch(e){
-          alert('⚠️ Gist 创建失败：'+e.message+'\n\n可能原因：token 没有 gist 权限。请检查后重新点「立即同步」。');
-          setStatus('offline');
-        }
-      } else {
-        setStatus('offline');
-      }
+      /* 无服务器后端 → 自动引导选择 Gitee（推荐·国内）或 Gist */
+      const choice=confirm('未检测到同步服务器。\n\n点「确定」= 用 Gitee 云端同步（推荐·国内可访问·免费）\n点「取消」= 用 GitHub Gist（需能访问 github）');
+      if(choice){ await setupGitee(); }
+      else { await setupGist(); }
     }
   }
 })();
