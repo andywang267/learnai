@@ -398,11 +398,13 @@ async function giteeLoad(){
 }
 async function giteeSave(data){
   const [o,rep]=GITEE_REPO.split('/');
+  const path=`/repos/${o}/${rep}/contents/state.json`;
   let sha=null;
-  try{ const cur=await giteeApi(`/repos/${o}/${rep}/contents/state.json`); sha=cur.sha; }catch(e){}
+  try{ const cur=await giteeApi(path); sha=cur.sha; }catch(e){}
   const body={message:'sync update', content:b64encUtf8(JSON.stringify(data))};
   if(sha) body.sha=sha;
-  await giteeApi(`/repos/${o}/${rep}/contents/state.json`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  // Gitee：文件不存在用 POST 创建；已存在用 PUT 更新（需 sha）
+  await giteeApi(path,{method: sha?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
 }
 async function giteeCreateRepo(){
   const name='ai-planner-sync';
