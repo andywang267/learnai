@@ -503,24 +503,45 @@ document.getElementById('btnInputSync').onclick=()=>{
   location.search=params.toString();
 };
 document.getElementById('btnSyncNow').onclick=async()=>{
-  if(MODE!=='gist'){
-    if(!UID) return;
-    if(!cloudOk){ setStatus('offline'); alert('未连接到云端同步服务。\n若你是把本页面单独托管/本地打开的，请通过 ?api=你的后端地址/api 指定同步后端后再打开；\n若是用云端版链接打开的，请稍候或检查网络。'); return; }
-    setStatus('syncing'); await doPush(); await pull(); return;
+  // ---- Gist 模式 ----
+  if(MODE==='gist'){
+    if(!GIST_TOKEN){ if(!showGistTokenPrompt()){ return; } }
+    if(!GIST_ID){
+      try{
+        const id=await gistCreate(); localStorage.setItem('aiplan_gist_id',id); MODE='gist';
+        const p=new URLSearchParams(location.search); p.set('gist',id); history.replaceState(null,'',location.pathname+'?'+p.toString());
+        alert('已创建云端笔记本！同步链接已生成，复制发给另一台设备即可同步。');
+      }catch(e){ alert('创建失败：'+e.message); setStatus('offline'); return; }
+    }
+    setStatus('syncing');
+    try{ await doPush(); await pull(); }catch(e){ setStatus('offline'); alert('同步失败：'+e.message); }
+    return;
   }
-  // Gist 模式：确保 token 与（可选的）gist
-  if(!GIST_TOKEN){ const t=prompt('Gist 云端同步需要 GitHub Token（只需 gist 权限）。粘贴你的 token：'); if(t){ GIST_TOKEN=t.trim(); localStorage.setItem('aiplan_gist_token',GIST_TOKEN); } }
-  if(!GIST_ID){
-    if(!GIST_TOKEN){ setStatus('offline'); return; }
-    try{
-      const id=await gistCreate(); localStorage.setItem('aiplan_gist_id',id); MODE='gist';
-      const p=new URLSearchParams(location.search); p.set('gist',id); history.replaceState(null,'',location.pathname+'?'+p.toString());
-      alert('已创建云端笔记本！同步链接已生成，复制发给另一台设备即可同步。');
-    }catch(e){ alert('创建失败：'+e.message); setStatus('offline'); return; }
+  // ---- Server 模式 ----
+  if(!UID) return;
+  if(!cloudOk){
+    /* 无后端 → 引导切 Gist 模式 */
+    const switchGist=confirm(
+      '未检测到同步服务器。\n\n'+
+      '要开启免费云端同步吗？\n（使用 GitHub Gist，只需一个 gist 权限的 Token，无需任何服务器）'
+    );
+    if(switchGist){
+      if(showGistTokenPrompt()){
+        try{
+          const id=await gistCreate();
+          localStorage.setItem('aiplan_gist_id',id);
+          MODE='gist';
+          const p=new URLSearchParams(location.search); p.set('gist',id); history.replaceState(null,'',location.pathname+'?'+p.toString());
+          cloudOk=true;
+          await doPush();
+          setStatus('online');
+          alert('✅ 云端同步已开启！\n\n点「复制同步链接」发给另一台设备即可跨设备同步。');
+        }catch(e){ alert('Gist 创建失败：'+e.message+'\n请检查 token 是否有 gist 权限。'); setStatus('offline'); }
+      }
+    }
+    return;
   }
-  if(!GIST_TOKEN){ setStatus('offline'); return; }
-  setStatus('syncing');
-  try{ await doPush(); await pull(); }catch(e){ setStatus('offline'); alert('同步失败：'+e.message); }
+  setStatus('syncing'); await doPush(); await pull();
 };
 
 /* ---------- helpers ---------- */
@@ -744,19 +765,57 @@ loadCache();
 UID=getUid();
 setStatus('syncing');
 updateRing(); refreshGrid(); applyOpcToUI(); renderNotes(); renderHistory();
+
+/** 引导用户配置 Gist 云端同步（无服务器时自动调用） */
+function showGistTokenPrompt(){
+  const t=prompt(
+    '🔗 开启云端同步（GitHub Gist，免费/无需服务器/永久可用）\n\n'+
+    '请粘贴你的 GitHub Personal Access Token：\n'+
+    '→ 没有？去 https://github.com/settings/tokens/new 生成一个\n'+
+    '→ 只需勾选 ✅ gist 这一项权限即可\n'+
+    '→ 生成后把 ghp_xxx 那串粘贴到下面',
+    GIST_TOKEN || ''
+  );
+  if(!t || !t.trim()) return false;
+  GIST_TOKEN=t.trim();
+  localStorage.setItem('aiplan_gist_token', GIST_TOKEN);
+  return true;
+}
+
 (async()=>{
   if(MODE==='gist'){
-    if(!GIST_TOKEN){ setStatus('offline'); return; }
+    if(!GIST_TOKEN){ showGistTokenPrompt(); setStatus('offline'); return; }
     try{ await gistLoad(); cloudOk=true; }catch(e){ cloudOk=false; }
-    if(cloudOk){ await pull(); setInterval(pull, 30000); }
-    else setStatus('offline');
+    if(cloudOk){ await pull(); setInterval(pull, 30000); setStatus('online'); }
+    else { setStatus('offline'); /* token 或 gist ID 有问题，让用户点"立即同步"重试 */ }
   } else {
     try{
       const r=await fetch(apiUrl('/api/ping')); const j=await r.json();
       cloudOk = !!(j && j.mode==='node');
     }catch(e){ cloudOk=false; }
-    if(cloudOk){ await pull(); setInterval(pull, 30000); }
-    else setStatus('offline');
+    if(cloudOk){
+      await pull(); setInterval(pull, 30000); setStatus('online');
+    } else {
+      /* 无服务器后端 → 自动引导切换到 Gist 模式 */
+      if(showGistTokenPrompt()){
+        // 用户输入了 token → 尝试创建 Gist 并切换模式
+        try{
+          const id=await gistCreate();
+          localStorage.setItem('aiplan_gist_id',id);
+          MODE='gist';
+          const p=new URLSearchParams(location.search); p.set('gist',id); history.replaceState(null,'',location.pathname+'?'+p.toString());
+          cloudOk=true;
+          await doPush();
+          setStatus('online');
+          alert('✅ 云端同步已开启！\n\n已创建你的云端笔记本（秘密 Gist）。\n点顶部「复制同步链接」发给手机/另一台电脑即可跨设备同步。');
+        }catch(e){
+          alert('⚠️ Gist 创建失败：'+e.message+'\n\n可能原因：token 没有 gist 权限。请检查后重新点「立即同步」。');
+          setStatus('offline');
+        }
+      } else {
+        setStatus('offline');
+      }
+    }
   }
 })();
 </script>
